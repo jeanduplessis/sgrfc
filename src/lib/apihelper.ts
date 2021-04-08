@@ -2,8 +2,9 @@
 import { readFileSync } from 'fs';
 // const readline = require('readline');
 import { google, Auth, drive_v3 } from 'googleapis';
+import Rfc from '../types/rfc';
 
-export default class GoogleApiHelper {
+export default class ApiHelper {
   static SCOPES = [
     'https://www.googleapis.com/auth/documents',
     'https://www.googleapis.com/auth/drive',
@@ -23,7 +24,7 @@ export default class GoogleApiHelper {
       client_email,
       undefined,
       private_key,
-      GoogleApiHelper.SCOPES
+      ApiHelper.SCOPES
     );
 
     const auth = await jwtClient.authorize();
@@ -50,7 +51,7 @@ export default class GoogleApiHelper {
       pageSize: 100,
       q:
         "name contains 'RFC' and parents in '1zP3FxdDlcSQGC1qvM9lHZRaHH4I9Jwwa' or name contains 'RFC' and parents in '1KCq4tMLnVlC0a1rwGuU5OSCw6mdDxLuv'",
-      fields: 'nextPageToken, files(id, name)',
+      fields: 'nextPageToken, files(id, name, parents)',
       pageToken,
       orderBy: 'createdTime,name',
     });
@@ -63,7 +64,7 @@ export default class GoogleApiHelper {
   }
 
   async getPagedRFCs(pageToken?: string): Promise<Record<string, any>> {
-    const files = [];
+    const rfcs: Rfc[] = [];
 
     // eslint-disable-next-line no-await-in-loop
     const searchResponse: drive_v3.Schema$FileList = await this.searchRFCs(
@@ -74,16 +75,21 @@ export default class GoogleApiHelper {
       // eslint-disable-next-line no-await-in-loop
       for await (const file of searchResponse.files) {
         if (file.name && file.name.startsWith('RFC')) {
-          files.push(file.name);
+          rfcs.push(
+            new Rfc(
+              file.name,
+              file.parents?.includes('1KCq4tMLnVlC0a1rwGuU5OSCw6mdDxLuv') // is the file from the private RFCs folder
+            )
+          );
         }
       }
     }
 
-    return { files, nextPageToken: searchResponse.nextPageToken };
+    return { rfcs, nextPageToken: searchResponse.nextPageToken };
   }
 
-  async getAllRFCs(): Promise<string[]> {
-    const files: string[] = [];
+  async getAllRFCs(): Promise<Rfc[]> {
+    const rfcs: Rfc[] = [];
 
     let pagedResponse;
     let pageToken: string | null | undefined;
@@ -96,25 +102,17 @@ export default class GoogleApiHelper {
 
       pageToken = pagedResponse?.nextPageToken;
 
-      files.push(...pagedResponse.files);
+      rfcs.push(...pagedResponse.rfcs);
     } while (pageToken);
 
-    files.sort((fileA: string, fileB: string) => {
-      const fileAMatches = fileA.match(/^RFC (\d+):? /m);
-      const fileBMatches = fileB.match(/^RFC (\d+):? /m);
-
-      if (
-        fileAMatches &&
-        fileAMatches.length === 2 &&
-        fileBMatches &&
-        fileBMatches.length === 2
-      ) {
-        return parseInt(fileAMatches[1], 10) - parseInt(fileBMatches[1], 10);
+    rfcs.sort((a: Rfc, b: Rfc) => {
+      if (a.number && b.number) {
+        return a.number - b.number;
       }
 
-      return -1;
+      return 1;
     });
 
-    return files;
+    return rfcs;
   }
 }

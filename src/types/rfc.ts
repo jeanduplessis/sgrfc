@@ -7,6 +7,8 @@ export enum RfcStatus {
 }
 
 export default class Rfc {
+  id?: string;
+
   fileName: string;
 
   isPrivate: boolean;
@@ -21,7 +23,8 @@ export default class Rfc {
 
   error?: string;
 
-  constructor(fileName: string, isPrivate = false) {
+  constructor(id: string, fileName: string, isPrivate = false) {
+    this.id = id;
     this.fileName = fileName;
     this.isPrivate = isPrivate;
 
@@ -44,11 +47,11 @@ export default class Rfc {
     if (this.valid) {
       return `RFC ${this.number} ${this.status}: ${this.title} ${
         this.isPrivate ? '[PRIVATE]' : ''
-      }`;
+      } (${this.id})`;
     }
 
     return `[INVALID - ${this.error}] ${this.fileName} ${
       this.isPrivate ? '[PRIVATE]' : ''
-    }`;
+    } (${this.id})`;
   }
 }
